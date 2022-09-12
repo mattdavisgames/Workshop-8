@@ -54,6 +54,8 @@ Shader "Unlit/PhongShader"
 			struct vertOut
 			{
 				float4 vertex : SV_POSITION;
+				float4 worldVertex : TEXCOORD1;
+				float3 worldNormal : NORMAL;
 				float4 color : COLOR;
 			};
 
@@ -66,9 +68,19 @@ Shader "Unlit/PhongShader"
 				// Note that we have to multiply the normal by the transposed inverse of the world 
 				// transformation matrix (for cases where we have non-uniform scaling; we also don't
 				// care about the "fourth" dimension, because translations don't affect the normal) 
-				float4 worldVertex = mul(unity_ObjectToWorld, v.vertex);
-				float3 worldNormal = normalize(mul(transpose((float3x3)unity_WorldToObject), v.normal.xyz));
+				o.worldVertex = mul(unity_ObjectToWorld, v.vertex);
 
+				// Transform vertex in world coordinates to camera coordinates
+				o.vertex = mul(UNITY_MATRIX_MVP, v.vertex);
+				o.worldNormal = normalize(mul(transpose((float3x3)unity_WorldToObject), v.normal.xyz));
+				o.color = v.color;
+
+				return o;
+			}
+			
+			// Implementation of the fragment shader
+			fixed4 frag(vertOut v) : SV_Target
+			{
 				// Calculate ambient RGB intensities
 				float Ka = 1;
 				float3 amb = v.color.rgb * UNITY_LIGHTMODEL_AMBIENT.rgb * Ka;
@@ -77,31 +89,24 @@ Shader "Unlit/PhongShader"
 				// (when calculating the reflected ray in our specular component)
 				float fAtt = 1;
 				float Kd = 1;
-				float3 L = normalize(_PointLightPosition - worldVertex.xyz);
-				float LdotN = dot(L, worldNormal.xyz);
+				float3 L = normalize(_PointLightPosition - v.worldVertex.xyz);
+				float LdotN = dot(L, v.worldNormal.xyz);
 				float3 dif = fAtt * _PointLightColor.rgb * Kd * v.color.rgb * saturate(LdotN);
-				
+
 				// Calculate specular reflections
 				float Ks = 1;
 				float specN = 5; // Values>>1 give tighter highlights
-				float3 V = normalize(_WorldSpaceCameraPos - worldVertex.xyz);
-				float3 R = reflect(L, worldNormal.xyz);
+				float3 V = normalize(_WorldSpaceCameraPos - v.worldVertex.xyz);
+				float3 R = reflect(L, v.worldNormal.xyz);
 				float3 spe = fAtt * _PointLightColor.rgb * Ks * pow(saturate(dot(V, R)), specN);
 
 				// Combine Phong illumination model components
-				o.color.rgb = amb.rgb + dif.rgb + spe.rgb;
-				o.color.a = v.color.a;
+				float4 result;
 
-				// Transform vertex in world coordinates to camera coordinates
-				o.vertex = mul(UNITY_MATRIX_MVP, v.vertex);
+				result.rgb = amb.rgb + dif.rgb + spe.rgb;
+				result.a = v.color.a;
 
-				return o;
-			}
-			
-			// Implementation of the fragment shader
-			fixed4 frag(vertOut v) : SV_Target
-			{
-				return v.color;
+				return result;
 			}
 			ENDCG
 		}
