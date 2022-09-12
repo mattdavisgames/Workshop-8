@@ -85,7 +85,7 @@ Shader "Unlit/GouraudShader"
 				float Ks = 1;
 				float specN = 5; // Values>>1 give tighter highlights
 				float3 V = normalize(_WorldSpaceCameraPos - worldVertex.xyz);
-				float3 R = float3(0.0, 0.0, 0.0);
+				float3 R = reflect(L, worldNormal.xyz);
 				float3 spe = fAtt * _PointLightColor.rgb * Ks * pow(saturate(dot(V, R)), specN);
 
 				// Combine Phong illumination model components
